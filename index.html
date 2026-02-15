@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>O.P.P LINK V3.2.2</title>
+
+<style>
+body{
+  margin:0;
+  background:black;
+  color:#00ff55;
+  font-family:monospace;
+  overflow:hidden;
+  position:relative;
+}
+
+/* Scanlines CRT */
+body::after{
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  background:repeating-linear-gradient(
+    to bottom,
+    rgba(0,255,0,0.05) 0px,
+    rgba(0,255,0,0.05) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  animation:scanMove 6s linear infinite;
+  z-index:2;
+}
+
+@keyframes scanMove{
+  from{background-position:0 0;}
+  to{background-position:0 10px;}
+}
+
+/* Bruit léger */
+#noise{
+  position:fixed;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  opacity:0.04;
+  background-image:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=");
+  animation:noiseMove 0.2s infinite;
+  z-index:1;
+}
+
+@keyframes noiseMove{
+  0%{transform:translate(0,0);}
+  25%{transform:translate(1px,-1px);}
+  50%{transform:translate(-1px,1px);}
+  75%{transform:translate(1px,1px);}
+  100%{transform:translate(0,0);}
+}
+
+/* BOOT SCREEN */
+#bootScreen{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100vw;
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:black;
+  z-index:1000;
+  overflow:hidden;
+}
+
+#bootScreen img{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%, -50%);
+  width:60%;
+  opacity:0.15;
+  pointer-events:none;
+}
+
+.bootText{
+  position:relative;
+  font-size:42px;
+  letter-spacing:6px;
+  text-align:center;
+  z-index:2;
+}
+
+.version{
+  position:absolute;
+  bottom:20px;
+  right:30px;
+  font-size:18px;
+  z-index:2;
+}
+
+/* Console */
+#console{
+  display:none;
+  padding:20px;
+  height:100vh;
+  overflow-y:auto;
+  white-space:pre-wrap;
+  position:relative;
+  z-index:5;
+}
+
+input{
+  background:black;
+  border:none;
+  color:#00ff55;
+  font-family:monospace;
+  font-size:16px;
+  outline:none;
+  width:95%;
+}
+
+/* GROS GLITCH */
+.bigGlitch{
+  animation:bigGlitchAnim 0.08s infinite;
+}
+
+@keyframes bigGlitchAnim{
+  0%{transform:translate(6px,0);}
+  25%{transform:translate(-6px,4px);}
+  50%{transform:translate(4px,-4px);}
+  75%{transform:translate(-4px,-3px);}
+  100%{transform:translate(0,0);}
+}
+</style>
+</head>
+
+<body>
+
+<div id="noise"></div>
+
+<div id="bootScreen">
+  <img src="logo.png">
+  <div class="bootText" id="bootText"></div>
+  <div class="version">V3.2.2</div>
+</div>
+
+<div id="console"></div>
+
+<script>
+const consoleDiv=document.getElementById("console");
+
+let attemptsID=99;
+let s1Attempts=3;
+
+let state=JSON.parse(localStorage.getItem("opp_state"))||{
+  s1:false,
+  s2:false
+};
+
+let lockedUntil=localStorage.getItem("lockedUntil");
+
+function saveState(){
+  localStorage.setItem("opp_state",JSON.stringify(state));
+}
+
+function print(text){
+  const line=document.createElement("div");
+  line.textContent=text;
+  consoleDiv.appendChild(line);
+  consoleDiv.scrollTop=consoleDiv.scrollHeight;
+}
+
+function inputLine(callback){
+  const wrapper=document.createElement("div");
+  const input=document.createElement("input");
+  wrapper.appendChild(input);
+  consoleDiv.appendChild(wrapper);
+  setTimeout(()=>input.focus(),50);
+
+  input.addEventListener("keydown",function(e){
+    if(e.key==="Enter"){
+      const value=input.value;
+      wrapper.remove();
+      print("> "+value);
+      callback(value);
+    }
+  });
+}
+
+/* BOOT */
+function boot(){
+  const text="O.P.P LINK";
+  let i=0;
+  const bt=document.getElementById("bootText");
+
+  let interval=setInterval(()=>{
+    bt.textContent+=text[i];
+    i++;
+    if(i>=text.length){
+      clearInterval(interval);
+      setTimeout(()=>{
+        document.getElementById("bootScreen").style.display="none";
+        consoleDiv.style.display="block";
+        start();
+      },2000);
+    }
+  },120);
+}
+
+function start(){
+  if(lockedUntil && Date.now()<lockedUntil){
+    print("SYSTEM LOCKED. RETRY LATER.");
+    return;
+  }
+  print("IDENTIFICATION");
+  print("ID:");
+  inputLine(checkID);
+}
+
+function checkID(val){
+  if(val==="2181"){
+    print("ACCES ACCORDE");
+    mainPrompt();
+  }else{
+    attemptsID--;
+    print("ACCES REFUSE");
+    print("ESSAIS RESTANTS : "+attemptsID);
+    print("IDENTIFICATION");
+    print("ID:");
+    inputLine(checkID);
+  }
+}
+
+function mainPrompt(){
+  inputLine(handleCommand);
+}
+
+function handleCommand(cmd){
+  cmd=cmd.toUpperCase().trim();
+
+  if(cmd==="HELP"){
+    print("COMMANDES DISPONIBLES:");
+    print("RECOVER");
+    print("DELETE");
+    print("HELP");
+    mainPrompt();
+  }
+  else if(cmd==="DELETE"){
+    print("YOU'RE NOT ALLOWED TO DELETE THE DATAS.");
+    print("YOU'LL BE CONTACTED BY A SPECIAL AGENT SOON.");
+    mainPrompt();
+  }
+  else if(cmd==="RECOVER"){
+    recover();
+  }
+  else if(cmd==="RESETMASTER"){
+    localStorage.clear();
+    location.reload();
+  }
+  else{
+    print("COMMANDE INCONNUE");
+    mainPrompt();
+  }
+}
+
+function recover(){
+  print("RECOVERING FILES...");
+  let progress=0;
+  const bar=document.createElement("div");
+  consoleDiv.appendChild(bar);
+
+  let interval=setInterval(()=>{
+    progress+=Math.floor(Math.random()*15);
+    if(progress>=100){
+      progress=100;
+      clearInterval(interval);
+      intrusion();
+    }
+    bar.textContent="RECOVERING FILES... "+progress+"%";
+  },400);
+}
+
+function intrusion(){
+  print("Intrusion detectee. Veuillez passer les 3 securites.");
+  securityMenu();
+}
+
+function securityMenu(){
+  print("Choisissez une securite :");
+  print(state.s1?"SECURITE 1 - AUTORISE":"SECURITE 1");
+  print(state.s2?"SECURITE 2 - AUTORISE":"SECURITE 2");
+  print("SECURITE 3");
+  inputLine(handleSecurityChoice);
+}
+
+function handleSecurityChoice(cmd){
+  cmd=cmd.toUpperCase().trim();
+  if(cmd==="SECURITE 1") security1();
+  else if(cmd==="SECURITE 2") security2();
+  else if(cmd==="SECURITE 3") security3();
+  else{
+    print("Commande invalide.");
+    securityMenu();
+  }
+}
+
+function security1(){
+  print("Entrez votre code special d'acces a 3 chiffres (essais restants: "+s1Attempts+")");
+  inputLine(val=>{
+    if(val==="191"){
+      print("code accepte");
+      state.s1=true;
+      saveState();
+      securityMenu();
+    }else{
+      s1Attempts--;
+      print("code faux");
+      if(s1Attempts<=0) lockSystem();
+      else security1();
+    }
+  });
+}
+
+function security2(){
+  print("Entrez votre keyword");
+  inputLine(val=>{
+    if(val.toLowerCase()==="delta"){
+      print("keyword accepte");
+      state.s2=true;
+      saveState();
+      securityMenu();
+    }else{
+      print("keyword faux");
+      security2();
+    }
+  });
+}
+
+function virusGlitch(){
+  document.body.classList.add("bigGlitch");
+
+  let chaos=setInterval(()=>{
+    const chars="▓▒░█@#$%&*!?<>/\\[]{}";
+    let line="";
+    for(let i=0;i<100;i++){
+      line+=chars[Math.floor(Math.random()*chars.length)];
+    }
+    print(line);
+  },40);
+
+  setTimeout(()=>{
+    clearInterval(chaos);
+    document.body.classList.remove("bigGlitch");
+    state.s1=false;
+    state.s2=false;
+    saveState();
+    location.reload();
+  },2500);
+}
+
+function security3(){
+  print("REMEMBER / FORGIVE / FORGET / RESTART / TRUST");
+  inputLine(val=>{
+    if(val==="FORGIVE"){
+      finalRecover();
+    }else{
+      virusGlitch();
+    }
+  });
+}
+
+function finalRecover(){
+  consoleDiv.innerHTML="";
+  print("RECOVERING DATAS...");
+  let progress=0;
+  const bar=document.createElement("div");
+  consoleDiv.appendChild(bar);
+
+  let interval=setInterval(()=>{
+    progress+=Math.floor(Math.random()*6);
+    if(progress>=100){
+      progress=100;
+      clearInterval(interval);
+      setTimeout(()=>{
+        consoleDiv.innerHTML="";
+        print("Demande recue. Vous recevrez vos prochaines informations.");
+      },2000);
+    }
+    bar.textContent="RECOVERING DATAS... "+progress+"%";
+  },900);
+}
+
+function lockSystem(){
+  print("Nombre d'essais epuise. Reessayez dans 24h.");
+  const lockTime=Date.now()+86400000;
+  localStorage.setItem("lockedUntil",lockTime);
+}
+
+boot();
+</script>
+
+</body>
+</html>
